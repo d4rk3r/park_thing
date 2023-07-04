@@ -1,21 +1,20 @@
-
 import requests
 import csv
 import time
 import json
 
-api_key = 'YOUR_API_KEY_HERE' # Replace this with your API key
+api_key = 'YOUR_API_KEY_HERE'  # Replace this with your API key
 
 def query_formatter(word):
     if " " in word:
         if "national park".lower() in word.lower():
-            word = word.replace(" ","%")
+            word = word.replace(" ", "%")
         else:
             word += " National Park"
-            word = word.replace(" ","%")
+            word = word.replace(" ", "%")
     else:
         word += " National Park"
-        word = word.replace(" ","%")
+        word = word.replace(" ", "%")
     return word
 
 def find_campgrounds(json_data):
@@ -33,7 +32,7 @@ def find_campgrounds(json_data):
     
     return campgrounds
 
-def get_park_rec_id(park_name,api):
+def get_park_rec_id(park_name, api):
     # Make an API call to retrieve the rec ID for the park
     url = f'https://ridb.recreation.gov/api/v1/recareas?query={query_formatter(park_name)}&limit=50&offset=0&apikey={api}'
     response = requests.get(url)
@@ -44,12 +43,12 @@ def get_park_rec_id(park_name,api):
         id = rec_area['RecAreaID']
         recreational_areas.append((name, id))
     query_check = query_formatter(park_name)
-    query_check = query_check.replace("%"," ")
+    query_check = query_check.replace("%", " ")
     for x in recreational_areas:
         if x[0] == query_check:
-            return(x[1])
-        
-def get_park_facilities(park_id,api):
+            return (x[1])
+
+def get_park_facilities(park_id, api):
     # Make an API call to retrieve the facility ID for the park
     url = f'https://ridb.recreation.gov/api/v1/recareas/{park_id}/facilities?query=campground&limit=50&offset=0&apikey={api}'
     response = requests.get(url)
@@ -91,17 +90,15 @@ def get_park_facilities(park_id,api):
             stay_limit = facility['StayLimit']
             tour = facility['TOUR']
 
-            campgrounds.append((facility_name,facility_id))
+            campgrounds.append((facility_name, facility_id))
     return campgrounds
 
 
-
-def get_facility_activities(facility_id,api):
+def get_facility_activities(facility_id, api):
     # Make an API call to retrieve the facility ID for the park
     url = f'https://ridb.recreation.gov/api/v1/facilities/{facility_id}/activities?limit=50&offset=0&apikey={api}'
     response = requests.get(url)
     data = json.loads(response.text)
-
 
     activities = []
     recdata = data['RECDATA']
@@ -113,17 +110,16 @@ def get_facility_activities(facility_id,api):
         facility_activity_description = rec['FacilityActivityDescription']
         facility_activity_fee_description = rec['FacilityActivityFeeDescription']
         nested_facility_id = rec['FacilityID']
-        
+
         activities.append(activity_name)
     return activities
 
-def get_facility_campsites(facility_id,api):
+
+def get_facility_campsites(facility_id, api):
     # Make an API call to retrieve the facility ID for the park
     url = f'https://ridb.recreation.gov/api/v1/facilities/{facility_id}/campsites?limit=50&offset=0&apikey={api}'
     response = requests.get(url)
     data = json.loads(response.text)
-
-
 
     campsites = []
     recdata = data['RECDATA']
@@ -145,32 +141,44 @@ def get_facility_campsites(facility_id,api):
         loop = record['Loop']
         permitted_equipment = record['PERMITTEDEQUIPMENT']
         type_of_use = record['TypeOfUse']
-        camp_output = (campsite_name, campsite_id, campsite_reservable,campsite_type, permitted_equipment,type_of_use,loop,attributes)
+        camp_output = (campsite_name, campsite_id, campsite_reservable, campsite_type, permitted_equipment,
+                       type_of_use, loop, attributes)
         campsites.append(camp_output)
     return campsites
 
 
-def campsite_printer(facility_id,api):
-    for x in get_facility_campsites(facility_id,api):
-        for y in x:
-            print(y)
-            print("--")
-        print("-------")
-    return ("*************")
+def campsite_printer(facility_id, api):
+    campsites = []
+    for x in get_facility_campsites(facility_id, api):
+        campsites.append(x)
+    return campsites
 
-def runner(park,api):
-    print("*************")
-    print(query_formatter(park).replace("%"," "))
-    print(get_park_rec_id(park,api))
-    print("*************")
-    campgrounds_output = get_park_facilities(get_park_rec_id(park,api),api)
-    for x in campgrounds_output:
-        print(x)
-        print(get_facility_activities(x[1],api))
-        print("--")
-        print(campsite_printer(x[1],api))
+
+def runner(park, api):
+    park_name = query_formatter(park).replace("%", " ")
+    park_id = get_park_rec_id(park, api)
+    
+    campgrounds_output = get_park_facilities(park_id, api)
+    
+    rows = []
+    
+    for campground in campgrounds_output:
+        facility_name = campground[0]
+        facility_id = campground[1]
+        activities = get_facility_activities(facility_id, api)
+        campsites = campsite_printer(facility_id, api)
+        
+        for campsite in campsites:
+            row = [park_name, facility_name, facility_id, activities, *campsite]
+            rows.append(row)
+    
+    # Write the data to a CSV file
+    with open('national_parks.csv', 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(['Park Name', 'Facility Name', 'Facility ID', 'Activities', 'Campsite Name', 'Campsite ID', 'Campsite Reservable', 'Campsite Type', 'Permitted Equipment', 'Type of Use', 'Loop', 'Attributes'])
+        writer.writerows(rows)
 
 
 # Format is either just park name (e.g., 'Yosemite') or full name (e.g., 'Yosemite National Park')
 # I didn't include extensive validation logic, so I'm assuming proper input for now
-runner("Yosemite",api_key)
+runner("Yosemite", api_key)

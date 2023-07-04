@@ -1,8 +1,9 @@
 const fetch = require('node-fetch');
+const fs = require('fs');
 
-const api_key = 'YOUR_API_KEY_HERE'; // Replace this with your API key
+const apiKey = 'YOUR_API_KEY_HERE'; // Replace this with your API key
 
-function query_formatter(word) {
+function queryFormatter(word) {
   if (word.includes(' ')) {
     if (word.toLowerCase().includes('national park')) {
       word = word.replace(/ /g, '%');
@@ -17,178 +18,104 @@ function query_formatter(word) {
   return word;
 }
 
-function find_campgrounds(json_data) {
+function findCampgrounds(jsonData) {
   const campgrounds = [];
-  const data = JSON.parse(json_data);
+
+  const data = JSON.parse(jsonData);
+
   for (const facility of data) {
     if (facility.facilityType === 'campground') {
       const campground = {
         facilityName: facility.facilityName,
-        facilityId: facility.facilityId,
+        facilityId: facility.facilityId
       };
       campgrounds.push(campground);
     }
   }
+
   return campgrounds;
 }
 
-async function get_park_rec_id(park_name, api) {
+async function getParkRecId(parkName, api) {
   // Make an API call to retrieve the rec ID for the park
-  const url = `https://ridb.recreation.gov/api/v1/recareas?query=${query_formatter(
-    park_name
+  const url = `https://ridb.recreation.gov/api/v1/recareas?query=${queryFormatter(
+    parkName
   )}&limit=50&offset=0&apikey=${api}`;
   const response = await fetch(url);
   const data = await response.json();
-  const recreational_areas = [];
-  for (const rec_area of data.RECDATA) {
-    const name = rec_area.RecAreaName;
-    const id = rec_area.RecAreaID;
-    recreational_areas.push({ name, id });
+  const recreationalAreas = [];
+
+  for (const recArea of data.RECDATA) {
+    const name = recArea.RecAreaName;
+    const id = recArea.RecAreaID;
+    recreationalAreas.push({ name, id });
   }
-  const query_check = query_formatter(park_name).replace(/%/g, ' ');
-  for (const x of recreational_areas) {
-    if (x.name === query_check) {
+
+  const queryCheck = queryFormatter(parkName).replace(/%/g, ' ');
+  for (const x of recreationalAreas) {
+    if (x.name === queryCheck) {
       return x.id;
     }
   }
 }
 
-async function get_park_facilities(park_id, api) {
+async function getParkFacilities(parkId, api) {
   // Make an API call to retrieve the facility ID for the park
-  const url = `https://ridb.recreation.gov/api/v1/recareas/${park_id}/facilities?query=campground&limit=50&offset=0&apikey=${api}`;
+  const url = `https://ridb.recreation.gov/api/v1/recareas/${parkId}/facilities?query=campground&limit=50&offset=0&apikey=${api}`;
   const response = await fetch(url);
   const data = await response.json();
 
   const campgrounds = [];
   for (const facility of data.RECDATA) {
     if (facility.FacilityTypeDescription.toLowerCase() === 'campground') {
-      const {
-        ACTIVITY,
-        CAMPSITE,
-        EVENT,
-        Enabled,
-        FACILITYADDRESS,
-        FacilityAdaAccess,
-        FacilityDescription,
-        FacilityDirections,
-        FacilityEmail,
-        FacilityID,
-        FacilityLatitude,
-        FacilityLongitude,
-        FacilityMapURL,
-        FacilityName,
-        FacilityPhone,
-        FacilityReservationURL,
-        FacilityTypeDescription,
-        FacilityUseFeeDescription,
-        GEOJSON,
-        Keywords,
-        LastUpdatedDate,
-        LegacyFacilityID,
-        MEDIA,
-        ORGANIZATION,
-        OrgFacilityID,
-        PERMITENTRANCE,
-        ParentOrgID,
-        ParentRecAreaID,
-        RECAREA,
-        Reservable,
-        StayLimit,
-        TOUR,
-      } = facility;
-
-      campgrounds.push({
-        facilityName: FacilityName,
-        facilityId: FacilityID,
-        activity: ACTIVITY,
-        campsite: CAMPSITE,
-        event: EVENT,
-        enabled: Enabled,
-        facilityAddress: FACILITYADDRESS,
-        facilityAdaAccess: FacilityAdaAccess,
-        facilityDescription: FacilityDescription,
-        facilityDirections: FacilityDirections,
-        facilityEmail: FacilityEmail,
-        facilityLatitude: FacilityLatitude,
-        facilityLongitude: FacilityLongitude,
-        facilityMapUrl: FacilityMapURL,
-        facilityPhone: FacilityPhone,
-        facilityReservationUrl: FacilityReservationURL,
-        facilityTypeDescription: FacilityTypeDescription,
-        facilityUseFeeDescription: FacilityUseFeeDescription,
-        geoJson: GEOJSON,
-        keywords: Keywords,
-        lastUpdatedDate: LastUpdatedDate,
-        legacyFacilityId: LegacyFacilityID,
-        media: MEDIA,
-        organization: ORGANIZATION,
-        orgFacilityId: OrgFacilityID,
-        permitEntrance: PERMITENTRANCE,
-        parentOrgId: ParentOrgID,
-        parentRecAreaId: ParentRecAreaID,
-        recArea: RECAREA,
-        reservable: Reservable,
-        stayLimit: StayLimit,
-        tour: TOUR,
-      });
+      const facilityName = facility.FacilityName;
+      const facilityId = facility.FacilityID;
+      campgrounds.push({ facilityName, facilityId });
     }
   }
+
   return campgrounds;
 }
 
-async function get_facility_activities(facility_id, api) {
+async function getFacilityActivities(facilityId, api) {
   // Make an API call to retrieve the facility ID for the park
-  const url = `https://ridb.recreation.gov/api/v1/facilities/${facility_id}/activities?limit=50&offset=0&apikey=${api}`;
+  const url = `https://ridb.recreation.gov/api/v1/facilities/${facilityId}/activities?limit=50&offset=0&apikey=${api}`;
   const response = await fetch(url);
   const data = await response.json();
 
   const activities = [];
-  const recdata = data.RECDATA;
-  for (const rec of recdata) {
-    const {
-      ActivityID,
-      ActivityName,
-      FacilityActivityDescription,
-      FacilityActivityFeeDescription,
-      FacilityID: nestedFacilityId,
-    } = rec;
-    activities.push({
-      activityId: ActivityID,
-      activityName: ActivityName,
-      facilityActivityDescription: FacilityActivityDescription,
-      facilityActivityFeeDescription: FacilityActivityFeeDescription,
-      nestedFacilityId,
-    });
+  for (const rec of data.RECDATA) {
+    const activityName = rec.ActivityName;
+    activities.push(activityName);
   }
+
   return activities;
 }
 
-async function get_facility_campsites(facility_id, api) {
+async function getFacilityCampsites(facilityId, api) {
   // Make an API call to retrieve the facility ID for the park
-  const url = `https://ridb.recreation.gov/api/v1/facilities/${facility_id}/campsites?limit=50&offset=0&apikey=${api}`;
+  const url = `https://ridb.recreation.gov/api/v1/facilities/${facilityId}/campsites?limit=50&offset=0&apikey=${api}`;
   const response = await fetch(url);
   const data = await response.json();
 
   const campsites = [];
-  const recdata = data.RECDATA;
-  for (const record of recdata) {
-    const {
-      ATTRIBUTES,
-      CampsiteAccessible: campsiteAccessible,
-      CampsiteID: campsiteId,
-      CampsiteLatitude: campsiteLatitude,
-      CampsiteLongitude: campsiteLongitude,
-      CampsiteName: campsiteName,
-      CampsiteReservable: campsiteReservable,
-      CampsiteType: campsiteType,
-      CreatedDate: createdDate,
-      ENTITYMEDIA: entityMedia,
-      FacilityID: nestedFacilityId,
-      LastUpdatedDate: lastUpdatedDate,
-      Loop: loop,
-      PERMITTEDEQUIPMENT: permittedEquipment,
-      TypeOfUse: typeOfUse,
-    } = record;
+  for (const record of data.RECDATA) {
+    const attributes = record.ATTRIBUTES;
+    const campsiteAccessible = record.CampsiteAccessible;
+    const campsiteId = record.CampsiteID;
+    const campsiteLatitude = record.CampsiteLatitude;
+    const campsiteLongitude = record.CampsiteLongitude;
+    const campsiteName = record.CampsiteName;
+    const campsiteReservable = record.CampsiteReservable;
+    const campsiteType = record.CampsiteType;
+    const createdDate = record.CreatedDate;
+    const entityMedia = record.ENTITYMEDIA;
+    const nestedFacilityId = record.FacilityID;
+    const lastUpdatedDate = record.LastUpdatedDate;
+    const loop = record.Loop;
+    const permittedEquipment = record.PERMITTEDEQUIPMENT;
+    const typeOfUse = record.TypeOfUse;
+
     const campOutput = {
       campsiteName,
       campsiteId,
@@ -197,40 +124,73 @@ async function get_facility_campsites(facility_id, api) {
       permittedEquipment,
       typeOfUse,
       loop,
-      attributes: ATTRIBUTES,
+      attributes
     };
     campsites.push(campOutput);
   }
+
   return campsites;
 }
 
-function campsite_printer(facility_id, api) {
-  get_facility_campsites(facility_id, api).then((campsites) => {
-    for (const x of campsites) {
-      for (const key in x) {
-        console.log(key);
-        console.log(x[key]);
-        console.log('--');
-      }
-      console.log('-------');
-    }
-  });
+function campsitePrinter(facilityId, api) {
+  return getFacilityCampsites(facilityId, api);
 }
 
 async function runner(park, api) {
-  console.log('*************');
-  console.log(query_formatter(park).replace(/%/g, ' '));
-  console.log(await get_park_rec_id(park, api));
-  console.log('*************');
-  const campgroundsOutput = await get_park_facilities(await get_park_rec_id(park, api), api);
-  for (const x of campgroundsOutput) {
-    console.log(x);
-    console.log(await get_facility_activities(x.facilityId, api));
-    console.log('--');
-    campsite_printer(x.facilityId, api);
+  const parkName = queryFormatter(park).replace(/%/g, ' ');
+  const parkId = await getParkRecId(park, api);
+
+  const campgroundsOutput = await getParkFacilities(parkId, api);
+
+  const rows = [];
+
+  for (const campground of campgroundsOutput) {
+    const facilityName = campground.facilityName;
+    const facilityId = campground.facilityId;
+    const activities = await getFacilityActivities(facilityId, api);
+    const campsites = await campsitePrinter(facilityId, api);
+
+    for (const campsite of campsites) {
+      const row = [
+        parkName,
+        facilityName,
+        facilityId,
+        activities,
+        campsite.campsiteName,
+        campsite.campsiteId,
+        campsite.campsiteReservable,
+        campsite.campsiteType,
+        campsite.permittedEquipment,
+        campsite.typeOfUse,
+        campsite.loop,
+        campsite.attributes
+      ];
+      rows.push(row);
+    }
   }
+
+  // Write the data to a CSV file
+  const csvContent = [
+    [
+      'Park Name',
+      'Facility Name',
+      'Facility ID',
+      'Activities',
+      'Campsite Name',
+      'Campsite ID',
+      'Campsite Reservable',
+      'Campsite Type',
+      'Permitted Equipment',
+      'Type of Use',
+      'Loop',
+      'Attributes'
+    ],
+    ...rows
+  ].map(row => row.join(',')).join('\n');
+
+  fs.writeFileSync('national_parks.csv', csvContent);
 }
 
 // Format is either just park name (e.g., 'Yosemite') or full name (e.g., 'Yosemite National Park')
 // I didn't include extensive validation logic, so I'm assuming proper input for now
-runner('Yosemite', api_key);
+runner('Yosemite', apiKey);
